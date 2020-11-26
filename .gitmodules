@@ -1,0 +1,6 @@
+[submodule "thunk_h"]
+	path = thunk_h
+	url = git://git.pengaru.com/thunk_h
+[submodule "libiou"]
+	path = libiou
+	url = git://git.pengaru.com/libiou
