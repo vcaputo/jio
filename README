@@ -1,0 +1,97 @@
+## Overview
+
+ jio is an experimental systemd-journald journal file tool
+ 
+ It deliberately avoids using systemd's sd-journal interface, instead
+ directly interfacing with journal files as defined by:
+
+ https://github.com/systemd/systemd/blob/v246/docs/JOURNAL_FILE_FORMAT.md
+
+ This is an unfinished work-in-progress, use at your own risk, backup your
+ journals before using.
+
+
+## Author, License, and Contributing
+
+ jio is written by Vito Caputo <vcaputo@pengaru.com>.
+ 
+ jio is licensed under the terms of the General Public License v3.
+
+ jio patches are welcome, just email them to <vcaputo@pengaru.com>.
+
+ Discussion of systemd-journald or the underlying journal file format
+ should occur on the systemd-devel mailing list.  Spare the systemd-devel
+ list of discussion specifically about jio patches, bugs, code, or
+ programming style, stuff that doesn't relate to systemd-journald or
+ journal-file at all should be sent directly to the jio author.
+
+
+## Requirements
+
+ jio utilizes the new "io_uring" Linux kernel interface, technically
+ introduced in v5.1, but v5.9+ is recommended for io_uring.  It's enabled
+ in the kernel config with CONFIG_IO_URING=Y, easily confirmed by checking
+ /proc/config.gz if present.
+
+ The liburing library is used for accessing the low-level io_uring syscalls
+ and preparing the associated queue entries.  You can find the source at:
+
+ https://git.kernel.dk/cgit/liburing
+
+ Otherwise jio is a relatively boring C program using autotools for its
+ build system.
+
+
+## Building
+
+ To build jio from source, first ensure you've cloned the git repository
+ recursively, including submodules:
+ 
+ `git clone --recursive git://git.pengaru.com/jio`
+ 
+ Also ensure you have a working C compiler, liburing, and autotools
+ available on the build host.
+ 
+ Bootstrap the build system from the jio source dir:
+ 
+ `./bootstrap`
+ 
+ Then configure and make from a build subdirectory:
+ 
+ `mkdir build && cd build && ../configure && make`
+ 
+ Assuming all goes well, you should have a jio executable at
+ "build/src/jio".
+
+ jio may be run as a regular user without elevated privileges, provided the
+ journal files of interest are accessible, like user journal files.  To
+ access system journal files generally requires elevated privileges.
+
+
+## Usage
+
+ Simply running `jio` with no arguments will print a terse summary of
+ key subcommands, e.g.:
+
+ ```
+ $ src/jio
+ Usage: build/src/jio {help,reclaim,report} [subcommand-args]
+ $
+ ```
+
+ This document is unlikely to be kept up to date as available subcommands
+ evolve, so it's best to just run jio without any arguments to see what's
+ possible.  `jio help` may also show additional subcommands.
+
+ At this time, the report subcommand features should be considered safe,
+ and if you run it as your regular user it will be limited to only journals
+ your user has access to.  If you run it as root, it will open all
+ available journals.
+
+ The reclaim subcommand is a journal-modifying command, so it should be
+ treated with caution especially considering the experimental nature of
+ jio.
+
+ Generally speaking, make backup copies of your journals before using jio
+ in any of its journal-modifying modes, only disposing of them after you've
+ verified the results are desirable.
