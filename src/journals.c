@@ -294,8 +294,8 @@ THUNK_DEFINE(journal_iter_next_object, iou_t *, iou, journal_t **, journal, Head
 }
 
 
-/* Helper for the journal_for_each() simple objects iteration. */
-THUNK_DEFINE_STATIC(journal_for_each_dispatch, iou_t *, iou, journal_t **, journal, Header *, header, uint64_t *, iter_offset, ObjectHeader *, iter_object_header, thunk_t *, closure)
+/* Helper for the journal_iter_objects() simple objects iteration. */
+THUNK_DEFINE_STATIC(journal_iter_objects_dispatch, iou_t *, iou, journal_t **, journal, Header *, header, uint64_t *, iter_offset, ObjectHeader *, iter_object_header, thunk_t *, closure)
 {
 	int	r;
 
@@ -307,7 +307,7 @@ THUNK_DEFINE_STATIC(journal_for_each_dispatch, iou_t *, iou, journal_t **, journ
 		return r;
 
 	return	journal_iter_next_object(iou, journal, header, iter_offset, iter_object_header, THUNK(
-			journal_for_each_dispatch(iou, journal, header, iter_offset, iter_object_header, closure)));
+			journal_iter_objects_dispatch(iou, journal, header, iter_offset, iter_object_header, closure)));
 }
 
 
@@ -317,14 +317,14 @@ THUNK_DEFINE_STATIC(journal_for_each_dispatch, iou_t *, iou, journal_t **, journ
  * closure is simply dispatched in a loop, no continuation is passed to it for
  * resuming iteration, which tends to limit its use to simple situations.
  */
-THUNK_DEFINE(journal_for_each, iou_t *, iou, journal_t **, journal, Header *, header, uint64_t *, iter_offset, ObjectHeader *, iter_object_header, thunk_t *, closure)
+THUNK_DEFINE(journal_iter_objects, iou_t *, iou, journal_t **, journal, Header *, header, uint64_t *, iter_offset, ObjectHeader *, iter_object_header, thunk_t *, closure)
 {
 	assert(iter_offset);
 
 	*iter_offset = 0;
 
 	return	journal_iter_next_object(iou, journal, header, iter_offset, iter_object_header, THUNK(
-			journal_for_each_dispatch(iou, journal, header, iter_offset, iter_object_header, closure)));
+			journal_iter_objects_dispatch(iou, journal, header, iter_offset, iter_object_header, closure)));
 }
 
 

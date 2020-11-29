@@ -88,7 +88,7 @@ THUNK_DEFINE_STATIC(per_journal, iou_t *, iou, journal_t **, journal_iter, usage
 	(*n_journals)++;
 
 	return journal_get_header(iou, &foo->journal, &foo->header, THUNK(
-			journal_for_each(iou, &foo->journal, &foo->header, &foo->iter_offset, &foo->iter_object_header, THUNK_INIT(
+			journal_iter_objects(iou, &foo->journal, &foo->header, &foo->iter_offset, &foo->iter_object_header, THUNK_INIT(
 				per_data_object(closure, &foo->iter_object_header, &foo->usage, total_usage)))));
 }
 

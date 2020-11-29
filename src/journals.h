@@ -26,7 +26,7 @@ THUNK_DECLARE(journals_open, iou_t *, iou, char **, machid, int, flags, journals
 THUNK_DECLARE(journal_get_header, iou_t *, iou, journal_t **, journal, Header *, header, thunk_t *, closure);
 
 THUNK_DECLARE(journal_iter_next_object, iou_t *, iou, journal_t **, journal, Header *, header, uint64_t *, iter_offset, ObjectHeader *, iter_object_header, thunk_t *, closure);
-THUNK_DECLARE(journal_for_each, iou_t *, iou, journal_t **, journal, Header *, header, uint64_t *, iter_offset, ObjectHeader *, iter_object_header, thunk_t *, closure);
+THUNK_DECLARE(journal_iter_objects, iou_t *, iou, journal_t **, journal, Header *, header, uint64_t *, iter_offset, ObjectHeader *, iter_object_header, thunk_t *, closure);
 
 THUNK_DECLARE(journal_get_hash_table, iou_t *, iou, journal_t **, journal, uint64_t *, hash_table_offset, uint64_t *, hash_table_size, HashItem **, res_hash_table, thunk_t *, closure);
 THUNK_DECLARE(journal_hash_table_iter_next_object, iou_t *, iou, journal_t **, journal, HashItem **, hash_table, uint64_t *, hash_table_size, uint64_t *, iter_bucket, uint64_t *, iter_offset, HashedObjectHeader *, iter_object_header, size_t, iter_object_size, thunk_t *, closure);
