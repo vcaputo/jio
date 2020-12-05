@@ -37,7 +37,7 @@ static const char type_map[_OBJECT_TYPE_MAX] = {
 	[OBJECT_DATA_HASH_TABLE] = 'D',
 	[OBJECT_FIELD_HASH_TABLE] = 'F',
 	[OBJECT_ENTRY_ARRAY] = 'A',
-	[OBJECT_TAG] = 'T',
+	[OBJECT_TAG] = 't',
 };
 
 /* TODO: this should be either argv settable or just determined at runtime */
@@ -131,7 +131,7 @@ THUNK_DEFINE_STATIC(per_journal, iou_t *, iou, journal_t **, journal_iter)
 		"|N|    object spans N page boundaries (page size used=%u)\n"
 		"|      single page boundary\n"
 		"+N     N bytes of alignment padding\n"
-		"+      single byte alignment padding\n\n",
+		"+      single byte of alignment padding\n\n",
 
 		type_map[OBJECT_UNUSED],
 		type_map[OBJECT_DATA],
