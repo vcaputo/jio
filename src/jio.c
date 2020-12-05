@@ -20,6 +20,7 @@
 #include <iou.h>
 
 #include "reclaim-tail-waste.h"
+#include "report-layout.h"
 #include "report-tail-waste.h"
 #include "report-usage.h"
 
@@ -55,6 +56,7 @@ int main(int argc, char *argv[])
 			"         tail-waste  reclaim wasted space from tails of archives\n"
 			"\n"
 			" report  [subcmd]    report statistics about journal files\n"
+			"         layout      report layout of objects, writes a .layout file per journal\n"
 			"         usage       report space used by various object types\n"
 			"         tail-waste  report extra space allocated onto tails\n"
 			" version             print jio version\n"
@@ -98,11 +100,17 @@ int main(int argc, char *argv[])
 		}
 	} else if (!strcmp(argv[1], "report")) {
 		if (argc < 3) {
-			printf("Usage: %s report {usage,tail-waste}\n", argv[0]);
+			printf("Usage: %s report {layout,usage,tail-waste}\n", argv[0]);
 			return 0;
 		}
 
-		if (!strcmp(argv[2], "tail-waste")) {
+		if (!strcmp(argv[2], "layout")) {
+			r = jio_report_layout(iou, argc, argv);
+			if (r < 0) {
+				fprintf(stderr, "failed to report layout: %s\n", strerror(-r));
+				return 1;
+			}
+		} else if (!strcmp(argv[2], "tail-waste")) {
 			r = jio_report_tail_waste(iou, argc, argv);
 			if (r < 0) {
 				fprintf(stderr, "failed to report tail waste: %s\n", strerror(-r));

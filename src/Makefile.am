@@ -14,6 +14,8 @@ jio_SOURCES = \
 	readfile.h \
 	reclaim-tail-waste.c \
 	reclaim-tail-waste.h \
+	report-layout.c \
+	report-layout.h \
 	report-tail-waste.c \
 	report-tail-waste.h \
 	report-usage.c \
