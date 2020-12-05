@@ -22,8 +22,6 @@
 #include <iou.h>
 #include <thunk.h>
 
-#include "bootid.h"
-#include "humane.h"
 #include "journals.h"
 #include "machid.h"
 #include "report-layout.h"
