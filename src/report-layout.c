@@ -57,7 +57,6 @@ THUNK_DEFINE_STATIC(per_data_object, uint64_t *, iter_offset, ObjectHeader *, it
 
 	if (!off) {
 		fprintf(out, "\n");
-		fflush(out);
 		fclose(out);
 		return 0;
 	}
