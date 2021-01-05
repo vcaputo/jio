@@ -131,6 +131,9 @@ int jio_reclaim_tail_waste(iou_t *iou, int argc, char *argv[])
 	int		r;
 	humane_t	h1;
 
+	printf("\nTemporarily disabled: https://github.com/systemd/systemd/pull/17876\n");
+	return -ENOTSUP;
+
 	r = machid_get(iou, &machid, THUNK(
 		journals_open(iou, &machid, O_RDWR, &journals, THUNK(
 			journals_for_each(&journals, &journal_iter, THUNK(
