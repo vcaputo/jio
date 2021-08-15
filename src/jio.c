@@ -20,6 +20,7 @@
 #include <iou.h>
 
 #include "reclaim-tail-waste.h"
+#include "report-entry-arrays.h"
 #include "report-layout.h"
 #include "report-tail-waste.h"
 #include "report-usage.h"
@@ -50,16 +51,17 @@ int main(int argc, char *argv[])
 	if (!strcmp(argv[1], "help")) {
 		printf(
 			"\n"
-			" help                show this help\n"
-			" license             print license header\n"
-			" reclaim [subcmd]    reclaim space from journal files\n"
-			"         tail-waste  reclaim wasted space from tails of archives\n"
+			" help                 show this help\n"
+			" license              print license header\n"
+			" reclaim [subcmd]     reclaim space from journal files\n"
+			"         tail-waste   reclaim wasted space from tails of archives\n"
 			"\n"
-			" report  [subcmd]    report statistics about journal files\n"
-			"         layout      report layout of objects, writes a .layout file per journal\n"
-			"         usage       report space used by various object types\n"
-			"         tail-waste  report extra space allocated onto tails\n"
-			" version             print jio version\n"
+			" report  [subcmd]     report statistics about journal files\n"
+			"         entry-arrays report statistics about entry array objects per journal\n"
+			"         layout       report layout of objects, writes a .layout file per journal\n"
+			"         usage        report space used by various object types\n"
+			"         tail-waste   report extra space allocated onto tails\n"
+			" version              print jio version\n"
 			"\n"
 		);
 		return 0;
@@ -104,7 +106,13 @@ int main(int argc, char *argv[])
 			return 0;
 		}
 
-		if (!strcmp(argv[2], "layout")) {
+		if (!strcmp(argv[2], "entry-arrays")) {
+			r = jio_report_entry_arrays(iou, argc, argv);
+			if (r < 0) {
+				fprintf(stderr, "failed to report entry arrays: %s\n", strerror(-r));
+				return 1;
+			}
+		} else if (!strcmp(argv[2], "layout")) {
 			r = jio_report_layout(iou, argc, argv);
 			if (r < 0) {
 				fprintf(stderr, "failed to report layout: %s\n", strerror(-r));
