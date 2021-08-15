@@ -137,7 +137,7 @@ THUNK_DEFINE_STATIC(per_entry_array_payload, iou_t *, iou, iou_op_t *, op, uint6
  * XXX also, if this manual dispatch sticks around, journals.[ch] should prolly just export this variant
  * for the manual iter cases...
  */
-THUNK_DEFINE_STATIC(per_object_dispatch, iou_t *, iou, journal_t **, journal, Header *, header, uint64_t *, iter_offset, ObjectHeader *, iter_object_header, thunk_t *, closure)
+THUNK_DEFINE_STATIC(per_object_dispatch, uint64_t *, iter_offset, thunk_t *, closure)
 {
 	if (!(*iter_offset))
 		return thunk_dispatch(closure);
@@ -236,7 +236,7 @@ THUNK_DEFINE_STATIC(per_object, thunk_t *, self, uint64_t *, iter_offset, Object
 	/* skip non-entry-array objects */
 	if (iter_object_header->type != OBJECT_ENTRY_ARRAY)
 		return journal_iter_next_object(iou, journal, header, iter_offset, iter_object_header, THUNK(
-				per_object_dispatch(iou, journal, header, iter_offset, iter_object_header, self)));
+				per_object_dispatch(iter_offset, self)));
 
 	stats->count++;
 
@@ -260,7 +260,7 @@ THUNK_DEFINE_STATIC(per_object, thunk_t *, self, uint64_t *, iter_offset, Object
 		op_queue(iou, op, THUNK(
 			per_entry_array_payload(iou, op, payload_size, buf, stats, THUNK(
 				journal_iter_next_object(iou, journal, header, iter_offset, iter_object_header, THUNK(
-					per_object_dispatch(iou, journal, header, iter_offset, iter_object_header, self)))))));
+					per_object_dispatch(iter_offset, self)))))));
 	}
 
 
@@ -288,7 +288,7 @@ THUNK_DEFINE_STATIC(per_journal, iou_t *, iou, journal_t **, journal_iter)
 
 	return journal_get_header(iou, &foo->journal, &foo->header, THUNK(
 			journal_iter_next_object(iou, &foo->journal, &foo->header, &foo->iter_offset, &foo->iter_object_header, THUNK(
-				per_object_dispatch(iou, &foo->journal, &foo->header, &foo->iter_offset, &foo->iter_object_header, THUNK_INIT(
+				per_object_dispatch(&foo->iter_offset, THUNK_INIT(
 					per_object(closure, closure, &foo->iter_offset, &foo->iter_object_header, iou, &foo->journal, &foo->header, &foo->stats)))))));
 }
 
