@@ -61,7 +61,7 @@ typedef struct entry_array_t {
 } entry_array_t;
 
 typedef struct entry_array_stats_t {
-	uint64_t	count, uniq;
+	uint64_t	count, unique;
 	entry_array_t	*buckets[N_BUCKETS];
 } entry_array_stats_t;
 
@@ -118,7 +118,7 @@ THUNK_DEFINE_STATIC(per_entry_array_payload, iou_t *, iou, iou_op_t *, op, uint6
 		ea->size = payload_size;
 		ea->next = stats->buckets[bucket];
 		stats->buckets[bucket] = ea;
-		stats->uniq++;
+		stats->unique++;
 	}
 
 	ea->count++;
@@ -188,7 +188,7 @@ THUNK_DEFINE_STATIC(per_object, thunk_t *, self, uint64_t *, iter_offset, Object
 
 		printf("\n\nEntry-array stats for \"%s\":\n", (*journal)->name);
 		printf("  Total EAs: %"PRIu64"\n", stats->count);
-		printf("  Unique EAs: %"PRIu64"\n", stats->uniq);
+		printf("  Unique EAs: %"PRIu64" (%%%.1f)\n", stats->unique, stats->count ? (float)stats->unique / (float)stats->count * 100.f : 0.f);
 		printf("  log2(size) counts (%%unique[total,unique] ...): ");
 
 		for (int i = 0; i < 64; i++) {
