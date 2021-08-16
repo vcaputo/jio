@@ -256,7 +256,8 @@ THUNK_DEFINE_STATIC(per_object, thunk_t *, self, uint64_t *, iter_offset, Object
 		if (!op)
 			return -ENOMEM;
 
-		io_uring_prep_read(op->sqe, (*journal)->fd, buf, payload_size, (*iter_offset) + offsetof(EntryArrayObject, items));
+		io_uring_prep_read(op->sqe, (*journal)->idx, buf, payload_size, (*iter_offset) + offsetof(EntryArrayObject, items));
+		op->sqe->flags = IOSQE_FIXED_FILE;
 		op_queue(iou, op, THUNK(
 			per_entry_array_payload(iou, op, payload_size, buf, stats, THUNK(
 				journal_iter_next_object(iou, journal, header, iter_offset, iter_object_header, THUNK(
