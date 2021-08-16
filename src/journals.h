@@ -17,7 +17,7 @@ typedef struct iou_t iou_t;
 
 typedef struct journal_t {
 	char	*name;
-	int	fd;
+	int	fd, idx;
 } journal_t;
 
 typedef struct journals_t journals_t;

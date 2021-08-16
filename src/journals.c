@@ -69,8 +69,29 @@ THUNK_DEFINE_STATIC(opened_journal, iou_t *, iou, iou_op_t *, op, journals_t *, 
 		journal->fd = op->result;
 	}
 
-	if (journals->n_opened == journals->n_journals)
+	if (journals->n_opened == journals->n_journals) {
+		int	*fds, r;
+
+		/* "register" all the opened journals, storing their respective
+		 * index in journal->idx for convenience.
+		 */
+		fds = malloc(sizeof(*fds) * journals->n_journals);
+		if (!fds)
+			return -ENOMEM;
+
+		for (int i = 0; i < journals->n_journals; i++) {
+			fds[i] = journals->journals[i].fd;
+			journals->journals[i].idx = i;
+		}
+
+		r = io_uring_register_files(iou_ring(iou), fds, journals->n_journals);
+		if (r < 0)
+			return r;
+
+		free(fds);
+
 		return thunk_dispatch(closure);
+	}
 
 	return 0;
 }
@@ -287,7 +308,8 @@ THUNK_DEFINE(journal_iter_next_object, iou_t *, iou, journal_t **, journal, Head
 	if (!op)
 		return -ENOMEM;
 
-	io_uring_prep_read(op->sqe, (*journal)->fd, iter_object_header, sizeof(ObjectHeader), *iter_offset);
+	io_uring_prep_read(op->sqe, (*journal)->idx, iter_object_header, sizeof(ObjectHeader), *iter_offset);
+	op->sqe->flags = IOSQE_FIXED_FILE;
 	op_queue(iou, op, THUNK(got_iter_object_header(iou, op, *journal, iter_offset, iter_object_header, closure)));
 
 	return 0;
@@ -451,7 +473,8 @@ THUNK_DEFINE(journal_hash_table_iter_next_object, iou_t *, iou, journal_t **, jo
 	if (!op)
 		return -ENOMEM;
 
-	io_uring_prep_read(op->sqe, (*journal)->fd, iter_object_header, iter_object_size, *iter_offset);
+	io_uring_prep_read(op->sqe, (*journal)->idx, iter_object_header, iter_object_size, *iter_offset);
+	op->sqe->flags = IOSQE_FIXED_FILE;
 	op_queue(iou, op, THUNK(got_hash_table_iter_object_header(iou, op, *journal, *hash_table, *hash_table_size, iter_bucket, iter_offset, iter_object_header, iter_object_size, closure)));
 
 	return 0;
@@ -546,7 +569,8 @@ THUNK_DEFINE(journal_get_hash_table, iou_t *, iou, journal_t **, journal, uint64
 	if (!table)
 		return -ENOMEM;
 
-	io_uring_prep_read(op->sqe, (*journal)->fd, table, *hash_table_size, *hash_table_offset);
+	io_uring_prep_read(op->sqe, (*journal)->idx, table, *hash_table_size, *hash_table_offset);
+	op->sqe->flags = IOSQE_FIXED_FILE;
 	op_queue(iou, op, THUNK(got_hashtable(iou, op, table, *hash_table_size, res_hash_table, closure)));
 
 	return 0;
@@ -612,7 +636,8 @@ THUNK_DEFINE(journal_get_header, iou_t *, iou, journal_t **, journal, Header *, 
 	if (!op)
 		return -ENOMEM;
 
-	io_uring_prep_read(op->sqe, (*journal)->fd, header, sizeof(*header), 0);
+	io_uring_prep_read(op->sqe, (*journal)->idx, header, sizeof(*header), 0);
+	op->sqe->flags = IOSQE_FIXED_FILE;
 	op_queue(iou, op, THUNK(got_header(iou, op, *journal, header, closure)));
 
 	return 0;
@@ -657,7 +682,8 @@ THUNK_DEFINE(journal_get_object_header, iou_t *, iou, journal_t **, journal, uin
 	if (!op)
 		return -ENOMEM;
 
-	io_uring_prep_read(op->sqe, (*journal)->fd, object_header, sizeof(*object_header), *offset);
+	io_uring_prep_read(op->sqe, (*journal)->idx, object_header, sizeof(*object_header), *offset);
+	op->sqe->flags = IOSQE_FIXED_FILE;
 	op_queue(iou, op, THUNK(got_object_header(iou, op, object_header, closure)));
 
 	return 0;
