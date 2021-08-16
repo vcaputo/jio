@@ -25,7 +25,7 @@
  * sense to explore some sharing technique.
  *
  * It also gives rudimentary utilization numbers.  Entry arrays grow
- * quadratically as an optimization, which can result in very poor utilization
+ * exponentially as an optimization, which can result in very poor utilization
  * %ages when the latest entry array is first created, if it never fills up
  * before being archived, especially if it's in a long entry array chain where
  * the latest doubling produced a large allocation.
