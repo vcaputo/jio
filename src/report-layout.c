@@ -18,6 +18,7 @@
 #include <inttypes.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdio_ext.h>
 
 #include <iou.h>
 #include <thunk.h>
@@ -115,6 +116,8 @@ THUNK_DEFINE_STATIC(per_journal, iou_t *, iou, journal_t **, journal_iter)
 	free(fname);
 	if (!f)
 		return -errno;
+
+	__fsetlocking(f, FSETLOCKING_BYCALLER);
 
 	fprintf(f, "Layout for \"%s\"\n", (*journal_iter)->name);
 	fprintf(f,
