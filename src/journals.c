@@ -712,12 +712,12 @@ THUNK_DEFINE(journals_for_each, journals_t **, journals, journal_t **, journal_i
 
 		r = thunk_dispatch_keep(closure);
 		if (r < 0) {
-			free(closure);
+			thunk_free(closure);
 			return r;
 		}
 	}
 
-	free(closure);
+	thunk_free(closure);
 
 	return 0;
 }
