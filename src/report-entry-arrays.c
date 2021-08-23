@@ -235,7 +235,7 @@ THUNK_DEFINE_STATIC(per_object, thunk_t *, self, uint64_t *, iter_offset, Object
 
 	/* skip non-entry-array objects */
 	if (iter_object_header->type != OBJECT_ENTRY_ARRAY)
-		return journal_iter_next_object(iou, journal, header, iter_offset, iter_object_header, THUNK(
+		return	journal_iter_next_object(iou, journal, header, iter_offset, iter_object_header, THUNK(
 				per_object_dispatch(iter_offset, self)));
 
 	stats->count++;
