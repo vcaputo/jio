@@ -22,7 +22,9 @@ jio_SOURCES = \
 	report-tail-waste.c \
 	report-tail-waste.h \
 	report-usage.c \
-	report-usage.h
+	report-usage.h \
+	verify-hashed-objects.c \
+	verify-hashed-objects.h
 
 jio_CPPFLAGS = -I@top_srcdir@/thunk_h -I@top_srcdir@/libiou/src
 jio_LDADD = @top_builddir@/libiou/src/libiou.a @top_builddir@/src/upstream/libupstream.a

@@ -33,6 +33,8 @@ THUNK_DECLARE(journal_hash_table_iter_next_object, iou_t *, iou, journal_t **, j
 THUNK_DECLARE(journal_hash_table_for_each, iou_t *, iou, journal_t **, journal, HashItem **, hash_table, uint64_t *, hash_table_size, uint64_t *, iter_bucket, uint64_t *, iter_offset, HashedObjectHeader *, iter_object_header, size_t, iter_object_size, thunk_t *, closure);
 
 THUNK_DECLARE(journal_get_object_header, iou_t *, iou, journal_t **, journal, uint64_t *, offset, ObjectHeader *, object_header, thunk_t *, closure);
+THUNK_DECLARE(journal_get_object, iou_t *, iou, journal_t **, journal, uint64_t *, offset, uint64_t *, size, Object **, object, thunk_t *, closure);
+THUNK_DECLARE(journal_get_object_full, iou_t *, iou, journal_t **, journal, uint64_t *, offset, ObjectHeader *, object_header, Object **, object, thunk_t *, closure);
 THUNK_DECLARE(journals_for_each, journals_t **, journals, journal_t **, journal_iter, thunk_t *, closure);
 
 const char * journal_object_type_str(ObjectType type);

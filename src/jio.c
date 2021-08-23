@@ -24,6 +24,7 @@
 #include "report-layout.h"
 #include "report-tail-waste.h"
 #include "report-usage.h"
+#include "verify-hashed-objects.h"
 
 #include "upstream/journal-def.h"
 
@@ -39,7 +40,7 @@ int main(int argc, char *argv[])
 	int	r;
 
 	if (argc < 2) {
-		printf("Usage: %s {help,reclaim,report} [subcommand-args]\n", argv[0]);
+		printf("Usage: %s {help,reclaim,report,verify} [subcommand-args]\n", argv[0]);
 		return 0;
 	}
 
@@ -132,6 +133,22 @@ int main(int argc, char *argv[])
 			}
 		} else {
 			fprintf(stderr, "Unsupported report subcommand: \"%s\"\n", argv[2]);
+			return 1;
+		}
+	} else if (!strcmp(argv[1], "verify")) {
+		if (argc < 3) {
+			printf("Usage: %s verify {hashed-objects}\n", argv[0]);
+			return 0;
+		}
+
+		if (!strcmp(argv[2], "hashed-objects")) {
+			r = jio_verify_hashed_objects(iou, argc, argv);
+			if (r < 0) {
+				fprintf(stderr, "failed to verify hashed objects: %s\n", strerror(-r));
+				return 1;
+			}
+		} else {
+			fprintf(stderr, "Unsupported verify subcommand: \"%s\"\n", argv[2]);
 			return 1;
 		}
 	} else if (!strcmp(argv[1], "version")) {
