@@ -1,3 +1,4 @@
+SUBDIRS = upstream
 bin_PROGRAMS = jio
 jio_SOURCES = \
 	bootid.c \
@@ -24,4 +25,4 @@ jio_SOURCES = \
 	report-usage.h
 
 jio_CPPFLAGS = -I@top_srcdir@/thunk_h -I@top_srcdir@/libiou/src
-jio_LDADD = @top_builddir@/libiou/src/libiou.a
+jio_LDADD = @top_builddir@/libiou/src/libiou.a @top_builddir@/src/upstream/libupstream.a

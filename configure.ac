@@ -25,6 +25,7 @@ AC_CONFIG_SUBDIRS([
 AC_CONFIG_FILES([
  Makefile
  src/Makefile
+ src/upstream/Makefile
 ])
 
 AC_OUTPUT

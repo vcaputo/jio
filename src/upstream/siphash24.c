@@ -23,6 +23,8 @@
 #include "siphash24.h"
 #include "unaligned.h"
 
+#define _fallthrough_
+
 static uint64_t rotate_left(uint64_t x, uint8_t b) {
         assert(b < 64);
 
