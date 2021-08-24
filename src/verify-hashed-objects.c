@@ -226,7 +226,7 @@ THUNK_DEFINE_STATIC(per_journal, iou_t *, iou, journal_t **, journal_iter)
 	foo->journal = *journal_iter;
 	foo->iter_object = foo->decompressed = NULL;
 
-	return thunk_end(journal_get_header(iou, &foo->journal, &foo->header, THUNK(
+	return thunk_mid(journal_get_header(iou, &foo->journal, &foo->header, THUNK(
 			journal_iter_next_object(iou, &foo->journal, &foo->header, &foo->iter_offset, &foo->iter_object_header, THUNK_INIT(
 					per_object(closure, closure, iou, &foo->journal, &foo->header, &foo->iter_offset, &foo->iter_object_header, &foo->iter_object, &foo->decompressed))))));
 }
