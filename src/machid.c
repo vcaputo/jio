@@ -51,7 +51,7 @@ THUNK_DEFINE_STATIC(have_machid, iou_t *, iou, char *, buf, size_t *, size, char
 	if (!*res_ptr)
 		return -ENOMEM;
 
-	return thunk_dispatch(closure);
+	return thunk_end(thunk_dispatch(closure));
 }
 
 

@@ -125,24 +125,7 @@ THUNK_DEFINE_STATIC(per_entry_array_payload, iou_t *, iou, iou_op_t *, op, uint6
 
 	free(payload_buf);
 
-	return thunk_dispatch(closure);
-}
-
-
-/* this is derived from journal_iter_objects_dispatch(), and frankly the need for a separate dispatch
- * thunk is pretty much entirely because thunk.h doesn't have a more streamlined means of controlling
- * thunk instance life-cycles.  If the return value could control freeing in thunk_dispatch(), I don't
- * think this kruft would exist at all.  But in the interest of just making things work for now, leave
- * it be and do this junk TODO FIXME
- * XXX also, if this manual dispatch sticks around, journals.[ch] should prolly just export this variant
- * for the manual iter cases...
- */
-THUNK_DEFINE_STATIC(per_object_dispatch, uint64_t *, iter_offset, thunk_t *, closure)
-{
-	if (!(*iter_offset))
-		return thunk_dispatch(closure);
-
-	return thunk_dispatch_keep(closure);
+	return thunk_end(thunk_dispatch(closure));
 }
 
 
@@ -235,8 +218,7 @@ THUNK_DEFINE_STATIC(per_object, thunk_t *, self, uint64_t *, iter_offset, Object
 
 	/* skip non-entry-array objects */
 	if (iter_object_header->type != OBJECT_ENTRY_ARRAY)
-		return	journal_iter_next_object(iou, journal, header, iter_offset, iter_object_header, THUNK(
-				per_object_dispatch(iter_offset, self)));
+		return	thunk_mid(journal_iter_next_object(iou, journal, header, iter_offset, iter_object_header, self));
 
 	stats->count++;
 
@@ -260,12 +242,10 @@ THUNK_DEFINE_STATIC(per_object, thunk_t *, self, uint64_t *, iter_offset, Object
 		op->sqe->flags = IOSQE_FIXED_FILE;
 		op_queue(iou, op, THUNK(
 			per_entry_array_payload(iou, op, payload_size, buf, stats, THUNK(
-				journal_iter_next_object(iou, journal, header, iter_offset, iter_object_header, THUNK(
-					per_object_dispatch(iter_offset, self)))))));
+				journal_iter_next_object(iou, journal, header, iter_offset, iter_object_header, self)))));
 	}
 
-
-	return 0;
+	return 1;
 }
 
 
@@ -288,9 +268,8 @@ THUNK_DEFINE_STATIC(per_journal, iou_t *, iou, journal_t **, journal_iter)
 	foo->journal = *journal_iter;
 
 	return journal_get_header(iou, &foo->journal, &foo->header, THUNK(
-			journal_iter_next_object(iou, &foo->journal, &foo->header, &foo->iter_offset, &foo->iter_object_header, THUNK(
-				per_object_dispatch(&foo->iter_offset, THUNK_INIT(
-					per_object(closure, closure, &foo->iter_offset, &foo->iter_object_header, iou, &foo->journal, &foo->header, &foo->stats)))))));
+			journal_iter_next_object(iou, &foo->journal, &foo->header, &foo->iter_offset, &foo->iter_object_header, THUNK_INIT(
+				per_object(closure, closure, &foo->iter_offset, &foo->iter_object_header, iou, &foo->journal, &foo->header, &foo->stats)))));
 }
 
 

@@ -174,17 +174,6 @@ THUNK_DEFINE_STATIC(per_hashed_object, journal_t *, journal, Header *, header, O
 	return thunk_dispatch(closure);
 }
 
-/* XXX TODO: this should prolly move into journals.[ch] now that it's
- * in both here and report-entry-arrays.c
- */
-THUNK_DEFINE_STATIC(per_object_dispatch, uint64_t *, iter_offset, thunk_t *, closure)
-{
-	if (!(*iter_offset))
-		return thunk_dispatch(closure);
-
-	return thunk_dispatch_keep(closure);
-}
-
 
 THUNK_DEFINE_STATIC(per_object, thunk_t *, self, iou_t *, iou, journal_t **, journal, Header *, header, uint64_t *, iter_offset, ObjectHeader *, iter_object_header, Object **, iter_object, void **, decompressed)
 {
@@ -201,8 +190,7 @@ THUNK_DEFINE_STATIC(per_object, thunk_t *, self, iou_t *, iou, journal_t **, jou
 
 	/* skip non-hashed objects */
 	if (iter_object_header->type != OBJECT_FIELD && iter_object_header->type != OBJECT_DATA)
-		return	journal_iter_next_object(iou, journal, header, iter_offset, iter_object_header, THUNK(
-				per_object_dispatch(iter_offset, self)));
+		return	thunk_mid(journal_iter_next_object(iou, journal, header, iter_offset, iter_object_header, self));
 
 	if (malloc_usable_size(*iter_object) < iter_object_header->size) {
 		free(*iter_object);
@@ -212,10 +200,9 @@ THUNK_DEFINE_STATIC(per_object, thunk_t *, self, iou_t *, iou, journal_t **, jou
 			return -ENOMEM;
 	}
 
-	return	journal_get_object(iou, journal, iter_offset, &iter_object_header->size, iter_object, THUNK(
+	return	thunk_mid(journal_get_object(iou, journal, iter_offset, &iter_object_header->size, iter_object, THUNK(
 			per_hashed_object(*journal, header, iter_object, decompressed, THUNK(
-				journal_iter_next_object(iou, journal, header, iter_offset, iter_object_header, THUNK(
-					per_object_dispatch(iter_offset, self)))))));
+				journal_iter_next_object(iou, journal, header, iter_offset, iter_object_header, self))))));
 }
 
 
@@ -240,9 +227,8 @@ THUNK_DEFINE_STATIC(per_journal, iou_t *, iou, journal_t **, journal_iter)
 	foo->iter_object = foo->decompressed = NULL;
 
 	return journal_get_header(iou, &foo->journal, &foo->header, THUNK(
-			journal_iter_next_object(iou, &foo->journal, &foo->header, &foo->iter_offset, &foo->iter_object_header, THUNK(
-				per_object_dispatch(&foo->iter_offset, THUNK_INIT(
-					per_object(closure, closure, iou, &foo->journal, &foo->header, &foo->iter_offset, &foo->iter_object_header, &foo->iter_object, &foo->decompressed)))))));
+			journal_iter_next_object(iou, &foo->journal, &foo->header, &foo->iter_offset, &foo->iter_object_header, THUNK_INIT(
+					per_object(closure, closure, iou, &foo->journal, &foo->header, &foo->iter_offset, &foo->iter_object_header, &foo->iter_object, &foo->decompressed)))));
 }
 
 

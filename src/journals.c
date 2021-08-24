@@ -91,7 +91,7 @@ THUNK_DEFINE_STATIC(opened_journal, iou_t *, iou, iou_op_t *, op, journals_t *, 
 
 		free(fds);
 
-		return thunk_dispatch(closure);
+		return thunk_end(thunk_dispatch(closure));
 	}
 
 	return 0;
@@ -248,7 +248,7 @@ THUNK_DEFINE_STATIC(got_iter_object_header, iou_t *, iou, iou_op_t *, op, journa
 
 	iter_object_header->size = le64toh(iter_object_header->size);
 
-	return thunk_dispatch_keep(closure);
+	return thunk_end(thunk_dispatch(closure));
 }
 
 
@@ -270,12 +270,6 @@ THUNK_DEFINE_STATIC(got_iter_object_header, iou_t *, iou, iou_op_t *, op, journa
  * *iter_object_header, and do whatever is appropriate upon reaching the end of
  * the journal.  If journal_iter_next_object() recurs after reaching this
  * point, it will restart iterating from the first object of the journal.
- *
- * Currently closures before the end of journal are dispatched w/the
- * non-freeing variant thunk_dispatch_keep().  Only the last dispatch
- * w/(*iter_offset == 0) is dispatched with the freeing thunk_dispatch().  This
- * feels clunky, but it works for now.  I might extend thunk.h to let closures
- * control wether their dispatch should free or not via the return value. TODO
  */
 THUNK_DEFINE(journal_iter_next_object, iou_t *, iou, journal_t **, journal, Header *, header, uint64_t *, iter_offset, ObjectHeader *, iter_object_header, thunk_t *, closure)
 {
@@ -322,15 +316,15 @@ THUNK_DEFINE_STATIC(journal_iter_objects_dispatch, iou_t *, iou, journal_t **, j
 {
 	int	r;
 
-	if (!(*iter_offset))
-		return thunk_dispatch(closure);
-
-	r = thunk_dispatch_keep(closure);
+	r = thunk_dispatch(closure);
 	if (r < 0)
 		return r;
 
-	return	journal_iter_next_object(iou, journal, header, iter_offset, iter_object_header, THUNK(
-			journal_iter_objects_dispatch(iou, journal, header, iter_offset, iter_object_header, closure)));
+	if (!(*iter_offset))
+		return 0;
+
+	return	thunk_end(journal_iter_next_object(iou, journal, header, iter_offset, iter_object_header, THUNK(
+			journal_iter_objects_dispatch(iou, journal, header, iter_offset, iter_object_header, closure))));
 }
 
 
@@ -404,7 +398,7 @@ THUNK_DEFINE_STATIC(got_hash_table_iter_object_header, iou_t *, iou, iou_op_t *,
 		}
 	}
 
-	return thunk_dispatch_keep(closure);
+	return thunk_end(thunk_dispatch(closure));
 }
 
 
@@ -426,13 +420,6 @@ THUNK_DEFINE_STATIC(got_hash_table_iter_object_header, iou_t *, iou, iou_op_t *,
  * the hash table.  If journal_hash_table_iter_next_object() recurs after
  * reaching this point, it will restart iterating from the first object of the
  * table.
- *
- * Currently closures before the end of hash_table are dispatched w/the
- * non-freeing variant thunk_dispatch_keep().  Only the last dispatch
- * w/(*iter_offset == 0) is dispatched with the freeing thunk_dispatch().
- * This feels clunky, but it works for now.  I might extend thunk.h to let
- * closures control wether their dispatch should free or not via the return
- * value. TODO
  */
 THUNK_DEFINE(journal_hash_table_iter_next_object, iou_t *, iou, journal_t **, journal, HashItem **, hash_table, uint64_t *, hash_table_size, uint64_t *, iter_bucket, uint64_t *, iter_offset, HashedObjectHeader *, iter_object_header, size_t, iter_object_size, thunk_t *, closure)
 {
@@ -464,7 +451,7 @@ THUNK_DEFINE(journal_hash_table_iter_next_object, iou_t *, iou, journal_t **, jo
 			(*iter_bucket)++;
 			if (*iter_bucket >= nbuckets) {
 				*iter_offset = 0;
-				return thunk_dispatch(closure);
+				return thunk_end(thunk_dispatch(closure));
 			}
 			(*iter_offset) = (*hash_table)[*iter_bucket].head_hash_offset;
 		} while (!(*iter_offset));
@@ -487,15 +474,15 @@ THUNK_DEFINE_STATIC(journal_hash_table_for_each_dispatch, iou_t *, iou, journal_
 {
 	int	r;
 
-	if (!*iter_offset)
-		return thunk_dispatch(closure);
-
-	r = thunk_dispatch_keep(closure);
+	r = thunk_dispatch(closure);
 	if (r < 0)
 		return r;
 
-	return	journal_hash_table_iter_next_object(iou, journal, hash_table, hash_table_size, iter_bucket, iter_offset, iter_object_header, iter_object_size, THUNK(
-			journal_hash_table_for_each_dispatch(iou, journal, hash_table, hash_table_size, iter_bucket, iter_offset, iter_object_header, iter_object_size, closure)));
+	if (!*iter_offset)
+		return 0;
+
+	return	thunk_end(journal_hash_table_iter_next_object(iou, journal, hash_table, hash_table_size, iter_bucket, iter_offset, iter_object_header, iter_object_size, THUNK(
+			journal_hash_table_for_each_dispatch(iou, journal, hash_table, hash_table_size, iter_bucket, iter_offset, iter_object_header, iter_object_size, closure))));
 }
 
 
@@ -543,7 +530,7 @@ THUNK_DEFINE_STATIC(got_hashtable, iou_t *, iou, iou_op_t *, op, HashItem *, tab
 
 	*res_hash_table = table;
 
-	return thunk_dispatch(closure);
+	return thunk_end(thunk_dispatch(closure));
 }
 
 
@@ -618,7 +605,7 @@ THUNK_DEFINE_STATIC(got_header, iou_t *, iou, iou_op_t *, op, journal_t *, journ
 	header->field_hash_chain_depth = le64toh(header->field_hash_chain_depth);
 	/* TODO: validation/sanity checks? */
 
-	return thunk_dispatch(closure);
+	return thunk_end(thunk_dispatch(closure));
 }
 
 
@@ -662,7 +649,7 @@ THUNK_DEFINE_STATIC(got_object_header, iou_t *, iou, iou_op_t *, op, ObjectHeade
 	object_header->size = le64toh(object_header->size);
 	/* TODO: validation/sanity checks? */
 
-	return thunk_dispatch(closure);
+	return thunk_end(thunk_dispatch(closure));
 }
 
 
@@ -765,7 +752,7 @@ THUNK_DEFINE_STATIC(got_object, iou_t *, iou, iou_op_t *, op, uint64_t, size, Ob
 		assert(0);
 	}
 
-	return thunk_dispatch(closure);
+	return thunk_end(thunk_dispatch(closure));
 }
 
 
@@ -852,11 +839,9 @@ THUNK_DEFINE(journals_for_each, journals_t **, journals, journal_t **, journal_i
 
 		(*journal_iter) = &j->journals[i];
 
-		r = thunk_dispatch_keep(closure);
-		if (r < 0) {
-			thunk_free(closure);
+		r = thunk_dispatch(closure);
+		if (r < 0)
 			return r;
-		}
 	}
 
 	thunk_free(closure);

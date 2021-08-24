@@ -45,7 +45,7 @@ THUNK_DEFINE_STATIC(read_done, iou_t *, iou, iou_op_t *, op, int, fd, char *, bu
 
 	*size = op->result;
 
-	return thunk_dispatch(closure);
+	return thunk_end(thunk_dispatch(closure));
 }
 
 
