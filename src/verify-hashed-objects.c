@@ -116,7 +116,7 @@ static int decompress(int compression, void *src, uint64_t src_size, void **dest
 }
 
 
-THUNK_DEFINE_STATIC(per_hashed_object, journal_t *, journal, Header *, header, Object **, iter_object, void **, decompressed, thunk_t *, closure)
+THUNK_DEFINE_STATIC(verify_hashed_object, journal_t *, journal, Header *, header, Object **, iter_object, void **, decompressed)
 {
 	int		compression;
 	uint64_t	payload_size, h;
@@ -171,7 +171,29 @@ THUNK_DEFINE_STATIC(per_hashed_object, journal_t *, journal, Header *, header, O
 		return -EBADMSG;
 	}
 
-	return thunk_end(thunk_dispatch(closure));
+	return 0;
+}
+
+
+THUNK_DEFINE_STATIC(per_hashed_object, iou_t *, iou, journal_t *, journal, Header *, header, Object **, iter_object, void **, decompressed, thunk_t *, closure)
+{
+	assert(iter_object && *iter_object);
+
+	/* smallish objects verify synchronously here */
+	if ((*iter_object)->object.size <= 16 * 1024) {
+		int	r;
+
+		r = verify_hashed_object(journal, header, iter_object, decompressed);
+		if (r < 0)
+			return r;
+
+		return thunk_end(thunk_dispatch(closure));
+	}
+
+	/* handoff larger objects to an async worker thread, with the supplied closure for continuation @ completion */
+	return	thunk_end(iou_async(iou, (int(*)(void *))thunk_dispatch, THUNK(
+			verify_hashed_object(journal, header, iter_object, decompressed)),
+				(int(*)(void *))thunk_dispatch, closure));
 }
 
 
@@ -201,7 +223,7 @@ THUNK_DEFINE_STATIC(per_object, thunk_t *, self, iou_t *, iou, journal_t **, jou
 	}
 
 	return	thunk_mid(journal_get_object(iou, journal, iter_offset, &iter_object_header->size, iter_object, THUNK(
-			per_hashed_object(*journal, header, iter_object, decompressed, THUNK(
+			per_hashed_object(iou, *journal, header, iter_object, decompressed, THUNK(
 				journal_iter_next_object(iou, journal, header, iter_offset, iter_object_header, self))))));
 }
 
