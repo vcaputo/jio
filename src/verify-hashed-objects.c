@@ -41,6 +41,11 @@
  * that ability, it probably makes sense to rename to verify-hashes.
  */
 
+/* just some basic counters to aid in sanity checking this thing is actually doing work */
+typedef struct verify_stats_t {
+		uint64_t	n_field_objects, n_data_objects;
+} verify_stats_t;
+
 /* borrowed from systemd */
 static uint64_t hash(Header *header, void *payload, uint64_t size)
 {
@@ -116,7 +121,7 @@ static int decompress(int compression, void *src, uint64_t src_size, void **dest
 }
 
 
-THUNK_DEFINE_STATIC(verify_hashed_object, journal_t *, journal, Header *, header, Object **, iter_object, void **, decompressed)
+THUNK_DEFINE_STATIC(verify_hashed_object, journal_t *, journal, Header *, header, Object **, iter_object, void **, decompressed, verify_stats_t *, stats)
 {
 	int		compression;
 	uint64_t	payload_size, h;
@@ -124,6 +129,7 @@ THUNK_DEFINE_STATIC(verify_hashed_object, journal_t *, journal, Header *, header
 	Object		*o;
 
 	assert(iter_object && *iter_object);
+	assert(stats);
 
 	o = *iter_object;
 
@@ -131,10 +137,12 @@ THUNK_DEFINE_STATIC(verify_hashed_object, journal_t *, journal, Header *, header
 	case OBJECT_FIELD:
 		payload_size = o->object.size - offsetof(FieldObject, payload),
 		payload = o->field.payload;
+		stats->n_field_objects++;
 		break;
 	case OBJECT_DATA:
 		payload_size = o->object.size - offsetof(DataObject, payload),
 		payload = o->data.payload;
+		stats->n_data_objects++;
 		break;
 	default:
 		assert(0);
@@ -175,7 +183,7 @@ THUNK_DEFINE_STATIC(verify_hashed_object, journal_t *, journal, Header *, header
 }
 
 
-THUNK_DEFINE_STATIC(per_hashed_object, iou_t *, iou, journal_t *, journal, Header *, header, Object **, iter_object, void **, decompressed, thunk_t *, closure)
+THUNK_DEFINE_STATIC(per_hashed_object, iou_t *, iou, journal_t *, journal, Header *, header, Object **, iter_object, void **, decompressed, verify_stats_t *, stats, thunk_t *, closure)
 {
 	assert(iter_object && *iter_object);
 
@@ -183,7 +191,7 @@ THUNK_DEFINE_STATIC(per_hashed_object, iou_t *, iou, journal_t *, journal, Heade
 	if ((*iter_object)->object.size <= 16 * 1024) {
 		int	r;
 
-		r = verify_hashed_object(journal, header, iter_object, decompressed);
+		r = verify_hashed_object(journal, header, iter_object, decompressed, stats);
 		if (r < 0)
 			return r;
 
@@ -192,21 +200,24 @@ THUNK_DEFINE_STATIC(per_hashed_object, iou_t *, iou, journal_t *, journal, Heade
 
 	/* handoff larger objects to an async worker thread, with the supplied closure for continuation @ completion */
 	return	thunk_end(iou_async(iou, (int(*)(void *))thunk_dispatch, THUNK(
-			verify_hashed_object(journal, header, iter_object, decompressed)),
+			verify_hashed_object(journal, header, iter_object, decompressed, stats)),
 				(int(*)(void *))thunk_dispatch, closure));
 }
 
 
-THUNK_DEFINE_STATIC(per_object, thunk_t *, self, iou_t *, iou, journal_t **, journal, Header *, header, uint64_t *, iter_offset, ObjectHeader *, iter_object_header, Object **, iter_object, void **, decompressed)
+THUNK_DEFINE_STATIC(per_object, thunk_t *, self, iou_t *, iou, journal_t **, journal, Header *, header, uint64_t *, iter_offset, ObjectHeader *, iter_object_header, Object **, iter_object, void **, decompressed, verify_stats_t *, stats)
 {
 	assert(iter_offset);
 	assert(iter_object_header);
 	assert(iter_object);
+	assert(stats);
 
 	if (!*iter_offset) {
 		free(*iter_object);
 		free(*decompressed);
 		*iter_object = *decompressed = NULL;
+		printf("\"%s\" finished: n_field_objects=%"PRIu64" n_data_objects=%"PRIu64"\n",
+			(*journal)->name, stats->n_field_objects, stats->n_data_objects);
 		return 0;
 	}
 
@@ -223,7 +234,7 @@ THUNK_DEFINE_STATIC(per_object, thunk_t *, self, iou_t *, iou, journal_t **, jou
 	}
 
 	return	thunk_mid(journal_get_object(iou, journal, iter_offset, &iter_object_header->size, iter_object, THUNK(
-			per_hashed_object(iou, *journal, header, iter_object, decompressed, THUNK(
+			per_hashed_object(iou, *journal, header, iter_object, decompressed, stats, THUNK(
 				journal_iter_next_object(iou, journal, header, iter_offset, iter_object_header, self))))));
 }
 
@@ -237,6 +248,7 @@ THUNK_DEFINE_STATIC(per_journal, iou_t *, iou, journal_t **, journal_iter)
 		ObjectHeader	iter_object_header;
 		Object		*iter_object;
 		void		*decompressed;
+		verify_stats_t	stats;
 	} *foo;
 
 	thunk_t		*closure;
@@ -247,10 +259,11 @@ THUNK_DEFINE_STATIC(per_journal, iou_t *, iou, journal_t **, journal_iter)
 	closure = THUNK_ALLOC(per_object, (void **)&foo, sizeof(*foo));
 	foo->journal = *journal_iter;
 	foo->iter_object = foo->decompressed = NULL;
+	foo->stats.n_field_objects = foo->stats.n_data_objects = 0;
 
 	return thunk_mid(journal_get_header(iou, &foo->journal, &foo->header, THUNK(
 			journal_iter_next_object(iou, &foo->journal, &foo->header, &foo->iter_offset, &foo->iter_object_header, THUNK_INIT(
-					per_object(closure, closure, iou, &foo->journal, &foo->header, &foo->iter_offset, &foo->iter_object_header, &foo->iter_object, &foo->decompressed))))));
+					per_object(closure, closure, iou, &foo->journal, &foo->header, &foo->iter_offset, &foo->iter_object_header, &foo->iter_object, &foo->decompressed, &foo->stats))))));
 }
 
 
