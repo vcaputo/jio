@@ -237,8 +237,12 @@ THUNK_DEFINE_STATIC(opened_journal, iou_t *, iou, iou_op_t *, op, journals_t *, 
 			}
 
 			r = io_uring_register_buffers(iou_ring(iou), bufs, n_bufs);
-			if (r < 0)
+			if (r < 0) {
+				free(bufs);
 				return r;
+			}
+
+			free(bufs);
 		}
 
 		free(fds);
