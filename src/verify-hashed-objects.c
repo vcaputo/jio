@@ -27,6 +27,7 @@
 #include <iou.h>
 #include <thunk.h>
 
+#include "humane.h"
 #include "journals.h"
 #include "machid.h"
 #include "verify-hashed-objects.h"
@@ -44,6 +45,7 @@
 /* just some basic counters to aid in sanity checking this thing is actually doing work */
 typedef struct verify_stats_t {
 		uint64_t	n_field_objects, n_data_objects;
+		uint64_t	n_field_bytes, n_data_bytes;
 } verify_stats_t;
 
 /* borrowed from systemd */
@@ -138,11 +140,13 @@ THUNK_DEFINE_STATIC(verify_hashed_object, journal_t *, journal, Header *, header
 		payload_size = o->object.size - offsetof(FieldObject, payload),
 		payload = o->field.payload;
 		stats->n_field_objects++;
+		stats->n_field_bytes += payload_size;
 		break;
 	case OBJECT_DATA:
 		payload_size = o->object.size - offsetof(DataObject, payload),
 		payload = o->data.payload;
 		stats->n_data_objects++;
+		stats->n_data_bytes += payload_size;
 		break;
 	default:
 		assert(0);
@@ -213,11 +217,18 @@ THUNK_DEFINE_STATIC(per_object, thunk_t *, self, iou_t *, iou, journal_t **, jou
 	assert(stats);
 
 	if (!*iter_offset) {
+		humane_t	h1, h2;
+
 		free(*iter_object);
 		free(*decompressed);
 		*iter_object = *decompressed = NULL;
-		printf("\"%s\" finished: n_field_objects=%"PRIu64" n_data_objects=%"PRIu64"\n",
-			(*journal)->name, stats->n_field_objects, stats->n_data_objects);
+
+		printf("\"%s\" finished: field_objects=%"PRIu64"(%s) data_objects=%"PRIu64"(%s)\n",
+			(*journal)->name,
+			stats->n_field_objects,
+			humane_bytes(&h1, stats->n_field_bytes),
+			stats->n_data_objects,
+			humane_bytes(&h2, stats->n_data_bytes));
 		return 0;
 	}
 
