@@ -123,9 +123,7 @@ int journal_read(iou_t *iou, journal_t *journal, uint64_t offset, uint64_t lengt
 				buf_used(journal, buf);
 				memcpy(dest, &buf->data[offset - buf->offset], length);
 
-				thunk_dispatch(closure);
-
-				return 0;
+				return thunk_end(thunk_dispatch(closure));
 			}
 		}
 
