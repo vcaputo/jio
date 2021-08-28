@@ -13,14 +13,29 @@
 
 #include "upstream/journal-def.h"
 
+/* TODO: the journal buf stuff should be made private to journals.c */
+#define JOURNAL_BUF_SIZE	8192
+#define JOURNAL_BUF_CNT		8
+
 typedef struct iou_t iou_t;
-
-typedef struct journal_t {
-	char	*name;
-	int	fd, idx;
-} journal_t;
-
 typedef struct journals_t journals_t;
+typedef struct journal_t journal_t;
+typedef struct journal_buf_t journal_buf_t;
+
+struct journal_buf_t {
+	journal_buf_t	*lru_prev, *lru_next;
+	uint64_t	offset, length;
+	unsigned	valid:1;
+	int		idx;
+	uint8_t		data[JOURNAL_BUF_SIZE];
+};
+
+struct journal_t {
+	char		*name;
+	int		fd, idx;
+	journal_buf_t	*lru_head, *lru_tail;
+	journal_buf_t	bufs[JOURNAL_BUF_CNT];
+};
 
 THUNK_DECLARE(journals_open, iou_t *, iou, char **, machid, int, flags, journals_t **, journals, thunk_t *, closure);
 THUNK_DECLARE(journal_get_header, iou_t *, iou, journal_t **, journal, Header *, header, thunk_t *, closure);
@@ -39,5 +54,7 @@ THUNK_DECLARE(journals_for_each, journals_t **, journals, journal_t **, journal_
 
 const char * journal_object_type_str(ObjectType type);
 const char * journal_state_str(JournalState state);
+
+int journal_read(iou_t *iou, journal_t *journal, uint64_t offset, uint64_t length, void *dest, thunk_t *closure);
 
 #endif
