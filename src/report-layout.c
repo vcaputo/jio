@@ -86,7 +86,7 @@ THUNK_DEFINE_STATIC(per_data_object, uint64_t *, iter_offset, ObjectHeader *, it
 		iter_object_header->size,
 		alignment_marker);
 
-	return 0;
+	return 1;
 }
 
 
@@ -149,9 +149,9 @@ THUNK_DEFINE_STATIC(per_journal, iou_t *, iou, journal_t **, journal_iter)
 	foo->journal = *journal_iter;
 	foo->out = f;
 
-	return journal_get_header(iou, &foo->journal, &foo->header, THUNK(
+	return thunk_mid(journal_get_header(iou, &foo->journal, &foo->header, THUNK(
 			journal_iter_objects(iou, &foo->journal, &foo->header, &foo->iter_offset, &foo->iter_object_header, THUNK_INIT(
-				per_data_object(closure, &foo->iter_offset, &foo->iter_object_header, foo->out)))));
+				per_data_object(closure, &foo->iter_offset, &foo->iter_object_header, foo->out))))));
 }
 
 

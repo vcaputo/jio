@@ -53,7 +53,7 @@ THUNK_DEFINE_STATIC(per_data_object, ObjectHeader *, iter_object_header, usage_t
 	total_usage->use_per_type[iter_object_header->type] += iter_object_header->size;
 	total_usage->use_total += iter_object_header->size;
 
-	return 0;
+	return 1;
 }
 
 
@@ -87,9 +87,9 @@ THUNK_DEFINE_STATIC(per_journal, iou_t *, iou, journal_t **, journal_iter, usage
 	total_usage->file_size += st.st_size;
 	(*n_journals)++;
 
-	return journal_get_header(iou, &foo->journal, &foo->header, THUNK(
+	return thunk_mid(journal_get_header(iou, &foo->journal, &foo->header, THUNK(
 			journal_iter_objects(iou, &foo->journal, &foo->header, &foo->iter_offset, &foo->iter_object_header, THUNK_INIT(
-				per_data_object(closure, &foo->iter_object_header, &foo->usage, total_usage)))));
+				per_data_object(closure, &foo->iter_object_header, &foo->usage, total_usage))))));
 }
 
 
