@@ -36,19 +36,43 @@
 
 #define PERSISTENT_PATH	"/var/log/journal"
 
+#define JOURNAL_BUF_SIZE	8192
+#define JOURNAL_BUF_CNT		8
 
-typedef struct journals_t {
+#ifndef container_of
+#define container_of(_ptr, _type, _member) \
+	(_type *)((void *)(_ptr) - offsetof(_type, _member))
+#endif
+
+
+typedef struct journal_buf_t journal_buf_t;
+
+struct journal_buf_t {
+	journal_buf_t	*lru_prev, *lru_next;
+	uint64_t	offset, length;
+	unsigned	valid:1;
+	int		idx;
+	uint8_t		data[JOURNAL_BUF_SIZE];
+};
+
+typedef struct _journal_t {
+	journal_t	public;
+	journal_buf_t	*lru_head, *lru_tail;
+	journal_buf_t	bufs[JOURNAL_BUF_CNT];
+} _journal_t;
+
+struct journals_t {
 	int		dirfd;
 	size_t		n_journals, n_allocated, n_opened;
-	journal_t	journals[];
-} journals_t;
+	_journal_t	journals[];
+};
 
 
 /* helper for bumping buf down to the bottom of journal->lru_{head,tail},
  * this should probably just pull in some linked list header like the kernel's
  * list.h, open coded slop for now
  */
-static void buf_used(journal_t *journal, journal_buf_t *buf)
+static void buf_used(_journal_t *journal, journal_buf_t *buf)
 {
 	assert(journal);
 	assert(buf);
@@ -101,6 +125,7 @@ THUNK_DEFINE_STATIC(buf_got_read, iou_t *, iou, iou_op_t *, op, void *, dest, ui
  */
 int journal_read(iou_t *iou, journal_t *journal, uint64_t offset, uint64_t length, void *dest, thunk_t *closure)
 {
+	_journal_t	*_journal = container_of(journal, _journal_t, public);
 	journal_buf_t	*buf;
 	iou_op_t	*op;
 
@@ -114,13 +139,13 @@ int journal_read(iou_t *iou, journal_t *journal, uint64_t offset, uint64_t lengt
 		/* small enough to fit, look in the buffers */
 
 		for (int i = 0; i < JOURNAL_BUF_CNT; i++) {
-			journal_buf_t	*buf = &journal->bufs[i];
+			journal_buf_t	*buf = &_journal->bufs[i];
 
 			if (!buf->valid)
 				continue;
 
 			if (offset >= buf->offset && offset + length <= buf->offset + buf->length) {
-				buf_used(journal, buf);
+				buf_used(_journal, buf);
 				memcpy(dest, &buf->data[offset - buf->offset], length);
 
 				return thunk_end(thunk_dispatch(closure));
@@ -130,8 +155,8 @@ int journal_read(iou_t *iou, journal_t *journal, uint64_t offset, uint64_t lengt
 		/* buffer fits, but wasn't found, read it into the "fixed" lru buf,
 		 * buf_got_read() will then copy out of the buf into dest when loaded.
 		 */
-		buf = journal->lru_head;
-		buf_used(journal, buf);
+		buf = _journal->lru_head;
+		buf_used(_journal, buf);
 		buf->valid = 0;
 
 		op = iou_op_new(iou);
@@ -160,12 +185,14 @@ int journal_read(iou_t *iou, journal_t *journal, uint64_t offset, uint64_t lengt
 /* an open on journal->name was attempted, result in op->result.
  * bump *journals->n_opened, when it matches *journals->n_journals, dispatch closure
  */
-THUNK_DEFINE_STATIC(opened_journal, iou_t *, iou, iou_op_t *, op, journals_t *, journals, journal_t *, journal, thunk_t *, closure)
+THUNK_DEFINE_STATIC(opened_journal, iou_t *, iou, iou_op_t *, op, journals_t *, journals, _journal_t *, _journal, thunk_t *, closure)
 {
+	journal_t	*journal = &_journal->public;
+
 	assert(iou);
 	assert(op);
 	assert(journals);
-	assert(journal);
+	assert(_journal);
 	assert(closure);
 
 	/* note n_opened is a count of open calls, not successes, the closure only gets called
@@ -182,13 +209,13 @@ THUNK_DEFINE_STATIC(opened_journal, iou_t *, iou, iou_op_t *, op, journals_t *, 
 	} else {
 
 		/* setup journal->lru_{head,tail} bufs list */
-		journal->lru_head = journal->lru_tail = &journal->bufs[0];
+		_journal->lru_head = _journal->lru_tail = &_journal->bufs[0];
 		for (int i = 1; i < JOURNAL_BUF_CNT; i++) {
-			journal_buf_t	*buf = &journal->bufs[i];
+			journal_buf_t	*buf = &_journal->bufs[i];
 
-			journal->lru_tail->lru_next = buf;
-			buf->lru_prev = journal->lru_tail;
-			journal->lru_tail = buf;
+			_journal->lru_tail->lru_next = buf;
+			buf->lru_prev = _journal->lru_tail;
+			_journal->lru_tail = buf;
 		}
 
 		journal->fd = op->result;
@@ -205,8 +232,8 @@ THUNK_DEFINE_STATIC(opened_journal, iou_t *, iou, iou_op_t *, op, journals_t *, 
 			return -ENOMEM;
 
 		for (int i = 0; i < journals->n_journals; i++) {
-			fds[i] = journals->journals[i].fd;
-			journals->journals[i].idx = i;
+			fds[i] = journals->journals[i].public.fd;
+			journals->journals[i].public.idx = i;
 		}
 
 		r = io_uring_register_files(iou_ring(iou), fds, journals->n_journals);
@@ -303,7 +330,7 @@ THUNK_DEFINE_STATIC(get_journals, iou_t *, iou, iou_op_t *, op, journals_t **, j
 		if (dent->d_name[0] == '.')	/* just skip dot files and "." ".." */
 			continue;
 
-		j->journals[j->n_journals++].name = strdup(dent->d_name);
+		j->journals[j->n_journals++].public.name = strdup(dent->d_name);
 
 		assert(j->n_journals <= j->n_allocated);// FIXME this defends against the race, but the race
 							// is a normal thing and should be handled gracefully,
@@ -329,7 +356,7 @@ THUNK_DEFINE_STATIC(get_journals, iou_t *, iou, iou_op_t *, op, journals_t **, j
 		if (!oop)
 			return -ENOMEM;	// FIXME: cleanup
 
-		io_uring_prep_openat(oop->sqe, j->dirfd, j->journals[i].name, flags, 0);
+		io_uring_prep_openat(oop->sqe, j->dirfd, j->journals[i].public.name, flags, 0);
 		op_queue(iou, oop, THUNK(opened_journal(iou, oop, j, &j->journals[i], closure)));
 	}
 
@@ -896,10 +923,10 @@ THUNK_DEFINE(journals_for_each, journals_t **, journals, journal_t **, journal_i
 	for (size_t i = 0; i < j->n_journals; i++) {
 		int	r;
 
-		if (j->journals[i].fd < 0)
+		if (j->journals[i].public.fd < 0)
 			continue;
 
-		(*journal_iter) = &j->journals[i];
+		(*journal_iter) = &j->journals[i].public;
 
 		r = thunk_dispatch(closure);
 		if (r < 0)
