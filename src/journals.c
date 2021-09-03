@@ -792,7 +792,7 @@ THUNK_DEFINE_STATIC(got_object, iou_t *, iou, uint64_t, size, Object *, object, 
 		object->entry.xor_hash = le64toh(object->entry.xor_hash);
 		for (uint64_t i = 0, n_items = OBJECT_N_ITEMS(object->entry); i < n_items; i++) {
 			object->entry.items[i].object_offset = le64toh(object->entry.items[i].object_offset);
-			object->entry.items[i].hash;
+			object->entry.items[i].hash = le64toh(object->entry.items[i].hash);
 		}
 		break;
 
