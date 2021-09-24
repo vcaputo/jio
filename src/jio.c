@@ -103,7 +103,7 @@ int main(int argc, char *argv[])
 		}
 	} else if (!strcmp(argv[1], "report")) {
 		if (argc < 3) {
-			printf("Usage: %s report {layout,usage,tail-waste}\n", argv[0]);
+			printf("Usage: %s report {entry-arrays,layout,tail-waste,usage}\n", argv[0]);
 			return 0;
 		}
 
