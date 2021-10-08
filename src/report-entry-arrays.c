@@ -66,6 +66,7 @@ typedef struct entry_array_profile_t {
 } entry_array_profile_t;
 
 typedef struct entry_array_stats_t {
+	uint64_t	count, unique;
 	struct {
 		uint64_t	total;
 		union {
@@ -149,6 +150,53 @@ static inline unsigned u64log2(uint64_t n) {
 }
 
 
+static void print_stats(const entry_array_stats_t *stats)
+{
+	printf("  Total EAs: %"PRIu64"\n", stats->count);
+	printf("  Unique EAs: %"PRIu64" (%%%.1f)\n", stats->unique, stats->count ? (float)stats->unique / (float)stats->count * 100.f : 0.f);
+	printf("  log2(size) counts (%%unique[total,unique] ...): ");
+
+	for (int i = 0; i < 64; i++) {
+		if (!stats->log2_size_counts[i].total)
+			printf("[] ");
+		else
+			printf("%.1f%%[%"PRIu64",%"PRIu64"] ",
+				stats->log2_size_counts[i].total ? (float)stats->log2_size_counts[i].unique / (float)stats->log2_size_counts[i].total * 100.f : 0.f,
+				stats->log2_size_counts[i].total,
+				stats->log2_size_counts[i].unique);
+	}
+	printf("\n");
+
+	printf("  log2(size) sizes (%%unique[total,unique] ...): ");
+	for (int i = 0; i < 64; i++) {
+		humane_t	h1, h2;
+
+		if (!stats->log2_size_bytes[i].total)
+			printf("[] ");
+		else
+			printf("%.1f%%[%s,%s] ",
+				stats->log2_size_bytes[i].total ? (float)stats->log2_size_bytes[i].unique / (float)stats->log2_size_bytes[i].total * 100.f : 0.f,
+				humane_bytes(&h1, stats->log2_size_bytes[i].total),
+				humane_bytes(&h2, stats->log2_size_bytes[i].unique));
+	}
+	printf("\n");
+
+	printf("  log2(size) utilization (%%used[total,used] ...): ");
+	for (int i = 0; i < 64; i++) {
+		humane_t	h1, h2;
+
+		if (!stats->log2_size_utilized[i].total)
+			printf("[] ");
+		else
+			printf("%.1f%%[%s,%s] ",
+				stats->log2_size_utilized[i].total ? (float)stats->log2_size_utilized[i].utilized / (float)stats->log2_size_utilized[i].total * 100.f : 0.f,
+				humane_bytes(&h1, stats->log2_size_utilized[i].total),
+				humane_bytes(&h2, stats->log2_size_utilized[i].utilized));
+	}
+	printf("\n");
+}
+
+
 THUNK_DEFINE_STATIC(per_object, thunk_t *, self, uint64_t *, iter_offset, ObjectHeader *, iter_object_header, iou_t *, iou, journal_t **, journal, Header *, header, entry_array_profile_t *, profile)
 {
 	assert(self);
@@ -156,7 +204,10 @@ THUNK_DEFINE_STATIC(per_object, thunk_t *, self, uint64_t *, iter_offset, Object
 	assert(iter_object_header);
 
 	if (!(*iter_offset)) { /* end of journal, print stats */
-		entry_array_stats_t	stats = {};
+		entry_array_stats_t	stats = {
+						.count = profile->count,
+						.unique = profile->unique,
+					};
 
 		for (int i = 0; i < N_BUCKETS; i++) {
 			for (entry_array_t *ea = profile->buckets[i]; ea; ea = ea->next) {
@@ -174,48 +225,7 @@ THUNK_DEFINE_STATIC(per_object, thunk_t *, self, uint64_t *, iter_offset, Object
 		}
 
 		printf("\n\nEntry-array stats for \"%s\":\n", (*journal)->name);
-		printf("  Total EAs: %"PRIu64"\n", profile->count);
-		printf("  Unique EAs: %"PRIu64" (%%%.1f)\n", profile->unique, profile->count ? (float)profile->unique / (float)profile->count * 100.f : 0.f);
-		printf("  log2(size) counts (%%unique[total,unique] ...): ");
-
-		for (int i = 0; i < 64; i++) {
-			if (!stats.log2_size_counts[i].total)
-				printf("[] ");
-			else
-				printf("%.1f%%[%"PRIu64",%"PRIu64"] ",
-					stats.log2_size_counts[i].total ? (float)stats.log2_size_counts[i].unique / (float)stats.log2_size_counts[i].total * 100.f : 0.f,
-					stats.log2_size_counts[i].total,
-					stats.log2_size_counts[i].unique);
-		}
-		printf("\n");
-
-		printf("  log2(size) sizes (%%unique[total,unique] ...): ");
-		for (int i = 0; i < 64; i++) {
-			humane_t	h1, h2;
-
-			if (!stats.log2_size_bytes[i].total)
-				printf("[] ");
-			else
-				printf("%.1f%%[%s,%s] ",
-					stats.log2_size_bytes[i].total ? (float)stats.log2_size_bytes[i].unique / (float)stats.log2_size_bytes[i].total * 100.f : 0.f,
-					humane_bytes(&h1, stats.log2_size_bytes[i].total),
-					humane_bytes(&h2, stats.log2_size_bytes[i].unique));
-		}
-		printf("\n");
-
-		printf("  log2(size) utilization (%%used[total,used] ...): ");
-		for (int i = 0; i < 64; i++) {
-			humane_t	h1, h2;
-
-			if (!stats.log2_size_utilized[i].total)
-				printf("[] ");
-			else
-				printf("%.1f%%[%s,%s] ",
-					stats.log2_size_utilized[i].total ? (float)stats.log2_size_utilized[i].utilized / (float)stats.log2_size_utilized[i].total * 100.f : 0.f,
-					humane_bytes(&h1, stats.log2_size_utilized[i].total),
-					humane_bytes(&h2, stats.log2_size_utilized[i].utilized));
-		}
-		printf("\n");
+		print_stats(&stats);
 
 		return 0;
 	}
