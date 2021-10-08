@@ -60,13 +60,13 @@ typedef struct entry_array_t {
 	uint64_t		count, size, utilized;
 } entry_array_t;
 
-typedef struct entry_array_stats_t {
+typedef struct entry_array_profile_t {
 	uint64_t	count, unique;
 	entry_array_t	*buckets[N_BUCKETS];
-} entry_array_stats_t;
+} entry_array_profile_t;
 
 
-THUNK_DEFINE_STATIC(per_entry_array_payload, iou_t *, iou, iou_op_t *, op, uint64_t, payload_size, char *, payload_buf, entry_array_stats_t *, stats, thunk_t *, closure)
+THUNK_DEFINE_STATIC(per_entry_array_payload, iou_t *, iou, iou_op_t *, op, uint64_t, payload_size, char *, payload_buf, entry_array_profile_t *, profile, thunk_t *, closure)
 {
 	unsigned char	digest[SHA_DIGEST_LENGTH];
 	int		bucket = 0;
@@ -93,7 +93,7 @@ THUNK_DEFINE_STATIC(per_entry_array_payload, iou_t *, iou, iou_op_t *, op, uint6
 		bucket %= N_BUCKETS;
 	}
 
-	for (ea = stats->buckets[bucket]; ea; ea = ea->next) {
+	for (ea = profile->buckets[bucket]; ea; ea = ea->next) {
 		if (!memcmp(ea->digest, digest, sizeof(digest)))
 			break;
 	}
@@ -116,9 +116,9 @@ THUNK_DEFINE_STATIC(per_entry_array_payload, iou_t *, iou, iou_op_t *, op, uint6
 
 		memcpy(ea->digest, digest, sizeof(digest));
 		ea->size = payload_size;
-		ea->next = stats->buckets[bucket];
-		stats->buckets[bucket] = ea;
-		stats->unique++;
+		ea->next = profile->buckets[bucket];
+		profile->buckets[bucket] = ea;
+		profile->unique++;
 	}
 
 	ea->count++;
@@ -139,7 +139,7 @@ static inline unsigned u64log2(uint64_t n) {
 }
 
 
-THUNK_DEFINE_STATIC(per_object, thunk_t *, self, uint64_t *, iter_offset, ObjectHeader *, iter_object_header, iou_t *, iou, journal_t **, journal, Header *, header, entry_array_stats_t *, stats)
+THUNK_DEFINE_STATIC(per_object, thunk_t *, self, uint64_t *, iter_offset, ObjectHeader *, iter_object_header, iou_t *, iou, journal_t **, journal, Header *, header, entry_array_profile_t *, profile)
 {
 	assert(self);
 	assert(iter_offset);
@@ -155,7 +155,7 @@ THUNK_DEFINE_STATIC(per_object, thunk_t *, self, uint64_t *, iter_offset, Object
 		} log2_size_counts[64] = {}, log2_size_bytes[64] = {}, log2_size_utilized[64] = {};
 
 		for (int i = 0; i < N_BUCKETS; i++) {
-			for (entry_array_t *ea = stats->buckets[i]; ea; ea = ea->next) {
+			for (entry_array_t *ea = profile->buckets[i]; ea; ea = ea->next) {
 				unsigned l2sz = u64log2(ea->size);
 
 				log2_size_counts[l2sz].unique++;
@@ -170,8 +170,8 @@ THUNK_DEFINE_STATIC(per_object, thunk_t *, self, uint64_t *, iter_offset, Object
 		}
 
 		printf("\n\nEntry-array stats for \"%s\":\n", (*journal)->name);
-		printf("  Total EAs: %"PRIu64"\n", stats->count);
-		printf("  Unique EAs: %"PRIu64" (%%%.1f)\n", stats->unique, stats->count ? (float)stats->unique / (float)stats->count * 100.f : 0.f);
+		printf("  Total EAs: %"PRIu64"\n", profile->count);
+		printf("  Unique EAs: %"PRIu64" (%%%.1f)\n", profile->unique, profile->count ? (float)profile->unique / (float)profile->count * 100.f : 0.f);
 		printf("  log2(size) counts (%%unique[total,unique] ...): ");
 
 		for (int i = 0; i < 64; i++) {
@@ -220,7 +220,7 @@ THUNK_DEFINE_STATIC(per_object, thunk_t *, self, uint64_t *, iter_offset, Object
 	if (iter_object_header->type != OBJECT_ENTRY_ARRAY)
 		return	thunk_mid(journal_iter_next_object(iou, journal, header, iter_offset, iter_object_header, self));
 
-	stats->count++;
+	profile->count++;
 
 	/* We need to load the actual entry array payload so we can hash it for
 	 * counting duplicates, so allocate space for that and queue the op.
@@ -241,7 +241,7 @@ THUNK_DEFINE_STATIC(per_object, thunk_t *, self, uint64_t *, iter_offset, Object
 		io_uring_prep_read(op->sqe, (*journal)->idx, buf, payload_size, (*iter_offset) + offsetof(EntryArrayObject, items));
 		op->sqe->flags = IOSQE_FIXED_FILE;
 		op_queue(iou, op, THUNK(
-			per_entry_array_payload(iou, op, payload_size, buf, stats, THUNK(
+			per_entry_array_payload(iou, op, payload_size, buf, profile, THUNK(
 				journal_iter_next_object(iou, journal, header, iter_offset, iter_object_header, self)))));
 	}
 
@@ -256,7 +256,7 @@ THUNK_DEFINE_STATIC(per_journal, iou_t *, iou, journal_t **, journal_iter)
 		Header			header;
 		uint64_t		iter_offset;
 		ObjectHeader		iter_object_header;
-		entry_array_stats_t	stats;
+		entry_array_profile_t	profile;
 	} *foo;
 
 	thunk_t	*closure;
@@ -269,7 +269,7 @@ THUNK_DEFINE_STATIC(per_journal, iou_t *, iou, journal_t **, journal_iter)
 
 	return journal_get_header(iou, &foo->journal, &foo->header, THUNK(
 			journal_iter_next_object(iou, &foo->journal, &foo->header, &foo->iter_offset, &foo->iter_object_header, THUNK_INIT(
-				per_object(closure, closure, &foo->iter_offset, &foo->iter_object_header, iou, &foo->journal, &foo->header, &foo->stats)))));
+				per_object(closure, closure, &foo->iter_offset, &foo->iter_object_header, iou, &foo->journal, &foo->header, &foo->profile)))));
 }
 
 
