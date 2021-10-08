@@ -197,11 +197,34 @@ static void print_stats(const entry_array_stats_t *stats)
 }
 
 
-THUNK_DEFINE_STATIC(per_object, thunk_t *, self, uint64_t *, iter_offset, ObjectHeader *, iter_object_header, iou_t *, iou, journal_t **, journal, Header *, header, entry_array_profile_t *, profile)
+static void add_stats(entry_array_stats_t *dest, const entry_array_stats_t *src)
+{
+	assert(dest);
+	assert(src);
+
+	dest->count += src->count;
+	dest->unique += src->unique;
+
+	for (int i = 0; i < 64; i++) {
+		dest->log2_size_counts[i].total += src->log2_size_counts[i].total;
+		dest->log2_size_counts[i].unique += src->log2_size_counts[i].unique;
+
+		dest->log2_size_bytes[i].total += src->log2_size_bytes[i].total;
+		dest->log2_size_bytes[i].unique += src->log2_size_bytes[i].unique;
+
+		dest->log2_size_utilized[i].total += src->log2_size_utilized[i].total;
+		dest->log2_size_utilized[i].utilized += src->log2_size_utilized[i].utilized;
+	}
+}
+
+
+THUNK_DEFINE_STATIC(per_object, thunk_t *, self, uint64_t *, iter_offset, ObjectHeader *, iter_object_header, iou_t *, iou, journal_t **, journal, Header *, header, entry_array_profile_t *, profile, entry_array_stats_t *, totals)
 {
 	assert(self);
 	assert(iter_offset);
 	assert(iter_object_header);
+	assert(profile);
+	assert(totals);
 
 	if (!(*iter_offset)) { /* end of journal, print stats */
 		entry_array_stats_t	stats = {
@@ -226,6 +249,7 @@ THUNK_DEFINE_STATIC(per_object, thunk_t *, self, uint64_t *, iter_offset, Object
 
 		printf("\n\nEntry-array stats for \"%s\":\n", (*journal)->name);
 		print_stats(&stats);
+		add_stats(totals, &stats);
 
 		return 0;
 	}
@@ -263,7 +287,7 @@ THUNK_DEFINE_STATIC(per_object, thunk_t *, self, uint64_t *, iter_offset, Object
 }
 
 
-THUNK_DEFINE_STATIC(per_journal, iou_t *, iou, journal_t **, journal_iter)
+THUNK_DEFINE_STATIC(per_journal, iou_t *, iou, journal_t **, journal_iter, entry_array_stats_t *, totals)
 {
 	struct {
 		journal_t		*journal;
@@ -283,28 +307,32 @@ THUNK_DEFINE_STATIC(per_journal, iou_t *, iou, journal_t **, journal_iter)
 
 	return journal_get_header(iou, &foo->journal, &foo->header, THUNK(
 			journal_iter_next_object(iou, &foo->journal, &foo->header, &foo->iter_offset, &foo->iter_object_header, THUNK_INIT(
-				per_object(closure, closure, &foo->iter_offset, &foo->iter_object_header, iou, &foo->journal, &foo->header, &foo->profile)))));
+				per_object(closure, closure, &foo->iter_offset, &foo->iter_object_header, iou, &foo->journal, &foo->header, &foo->profile, totals)))));
 }
 
 
 /* print stats about entry arrays per journal */
 int jio_report_entry_arrays(iou_t *iou, int argc, char *argv[])
 {
-	char		*machid;
-	journals_t	*journals;
-	journal_t	*journal_iter;
-	int		r;
+	char			*machid;
+	journals_t		*journals;
+	journal_t		*journal_iter;
+	int			r;
+	entry_array_stats_t	totals = {};
 
 	r = machid_get(iou, &machid, THUNK(
 		journals_open(iou, &machid, O_RDONLY, &journals, THUNK(
 			journals_for_each(&journals, &journal_iter, THUNK(
-				per_journal(iou, &journal_iter)))))));
+				per_journal(iou, &journal_iter, &totals)))))));
 	if (r < 0)
 		return r;
 
 	r = iou_run(iou);
 	if (r < 0)
 		return r;
+
+	printf("\n\nEntry-array aggregate totals for all journals\n");
+	print_stats(&totals);
 
 	return 0;
 }
