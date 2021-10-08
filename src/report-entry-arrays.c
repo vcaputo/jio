@@ -65,6 +65,16 @@ typedef struct entry_array_profile_t {
 	entry_array_t	*buckets[N_BUCKETS];
 } entry_array_profile_t;
 
+typedef struct entry_array_stats_t {
+	struct {
+		uint64_t	total;
+		union {
+			uint64_t unique;
+			uint64_t utilized;
+		};
+	} log2_size_counts[64], log2_size_bytes[64], log2_size_utilized[64];
+} entry_array_stats_t;
+
 
 THUNK_DEFINE_STATIC(per_entry_array_payload, iou_t *, iou, iou_op_t *, op, uint64_t, payload_size, char *, payload_buf, entry_array_profile_t *, profile, thunk_t *, closure)
 {
@@ -146,26 +156,20 @@ THUNK_DEFINE_STATIC(per_object, thunk_t *, self, uint64_t *, iter_offset, Object
 	assert(iter_object_header);
 
 	if (!(*iter_offset)) { /* end of journal, print stats */
-		struct {
-			uint64_t	total;
-			union {
-				uint64_t unique;
-				uint64_t utilized;
-			};
-		} log2_size_counts[64] = {}, log2_size_bytes[64] = {}, log2_size_utilized[64] = {};
+		entry_array_stats_t	stats = {};
 
 		for (int i = 0; i < N_BUCKETS; i++) {
 			for (entry_array_t *ea = profile->buckets[i]; ea; ea = ea->next) {
 				unsigned l2sz = u64log2(ea->size);
 
-				log2_size_counts[l2sz].unique++;
-				log2_size_counts[l2sz].total += ea->count;
+				stats.log2_size_counts[l2sz].unique++;
+				stats.log2_size_counts[l2sz].total += ea->count;
 
-				log2_size_bytes[l2sz].unique = ea->size;
-				log2_size_bytes[l2sz].total = ea->size * ea->count;
+				stats.log2_size_bytes[l2sz].unique = ea->size;
+				stats.log2_size_bytes[l2sz].total = ea->size * ea->count;
 
-				log2_size_utilized[l2sz].total += ea->size * ea->count;
-				log2_size_utilized[l2sz].utilized += ea->utilized * ea->count;
+				stats.log2_size_utilized[l2sz].total += ea->size * ea->count;
+				stats.log2_size_utilized[l2sz].utilized += ea->utilized * ea->count;
 			}
 		}
 
@@ -175,13 +179,13 @@ THUNK_DEFINE_STATIC(per_object, thunk_t *, self, uint64_t *, iter_offset, Object
 		printf("  log2(size) counts (%%unique[total,unique] ...): ");
 
 		for (int i = 0; i < 64; i++) {
-			if (!log2_size_counts[i].total)
+			if (!stats.log2_size_counts[i].total)
 				printf("[] ");
 			else
 				printf("%.1f%%[%"PRIu64",%"PRIu64"] ",
-					log2_size_counts[i].total ? (float)log2_size_counts[i].unique / (float)log2_size_counts[i].total * 100.f : 0.f,
-					log2_size_counts[i].total,
-					log2_size_counts[i].unique);
+					stats.log2_size_counts[i].total ? (float)stats.log2_size_counts[i].unique / (float)stats.log2_size_counts[i].total * 100.f : 0.f,
+					stats.log2_size_counts[i].total,
+					stats.log2_size_counts[i].unique);
 		}
 		printf("\n");
 
@@ -189,13 +193,13 @@ THUNK_DEFINE_STATIC(per_object, thunk_t *, self, uint64_t *, iter_offset, Object
 		for (int i = 0; i < 64; i++) {
 			humane_t	h1, h2;
 
-			if (!log2_size_bytes[i].total)
+			if (!stats.log2_size_bytes[i].total)
 				printf("[] ");
 			else
 				printf("%.1f%%[%s,%s] ",
-					log2_size_bytes[i].total ? (float)log2_size_bytes[i].unique / (float)log2_size_bytes[i].total * 100.f : 0.f,
-					humane_bytes(&h1, log2_size_bytes[i].total),
-					humane_bytes(&h2, log2_size_bytes[i].unique));
+					stats.log2_size_bytes[i].total ? (float)stats.log2_size_bytes[i].unique / (float)stats.log2_size_bytes[i].total * 100.f : 0.f,
+					humane_bytes(&h1, stats.log2_size_bytes[i].total),
+					humane_bytes(&h2, stats.log2_size_bytes[i].unique));
 		}
 		printf("\n");
 
@@ -203,13 +207,13 @@ THUNK_DEFINE_STATIC(per_object, thunk_t *, self, uint64_t *, iter_offset, Object
 		for (int i = 0; i < 64; i++) {
 			humane_t	h1, h2;
 
-			if (!log2_size_utilized[i].total)
+			if (!stats.log2_size_utilized[i].total)
 				printf("[] ");
 			else
 				printf("%.1f%%[%s,%s] ",
-					log2_size_utilized[i].total ? (float)log2_size_utilized[i].utilized / (float)log2_size_utilized[i].total * 100.f : 0.f,
-					humane_bytes(&h1, log2_size_utilized[i].total),
-					humane_bytes(&h2, log2_size_utilized[i].utilized));
+					stats.log2_size_utilized[i].total ? (float)stats.log2_size_utilized[i].utilized / (float)stats.log2_size_utilized[i].total * 100.f : 0.f,
+					humane_bytes(&h1, stats.log2_size_utilized[i].total),
+					humane_bytes(&h2, stats.log2_size_utilized[i].utilized));
 		}
 		printf("\n");
 
