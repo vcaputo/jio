@@ -77,7 +77,7 @@ typedef struct entry_array_stats_t {
 } entry_array_stats_t;
 
 
-THUNK_DEFINE_STATIC(per_entry_array_payload, iou_t *, iou, iou_op_t *, op, uint64_t, payload_size, char *, payload_buf, entry_array_profile_t *, profile, thunk_t *, closure)
+THUNK_DEFINE_STATIC(per_entry_array_payload, iou_t *, iou, uint64_t, payload_size, char *, payload_buf, entry_array_profile_t *, profile, thunk_t *, closure)
 {
 	unsigned char	digest[SHA_DIGEST_LENGTH];
 	int		bucket = 0;
@@ -87,12 +87,6 @@ THUNK_DEFINE_STATIC(per_entry_array_payload, iou_t *, iou, iou_op_t *, op, uint6
 	assert(iou);
 	assert(payload_size);
 	assert(payload_buf);
-
-	if (op->result < 0)
-		return op->result;
-
-	if (op->result != payload_size)
-		return -EINVAL;
 
 	SHA1_Init(&ctx);
 	SHA1_Update(&ctx, payload_buf, payload_size);
@@ -264,26 +258,17 @@ THUNK_DEFINE_STATIC(per_object, thunk_t *, self, uint64_t *, iter_offset, Object
 	 * counting duplicates, so allocate space for that and queue the op.
 	 */
 	{
-		iou_op_t	*op;
-		char		*buf;
-		size_t		payload_size = iter_object_header->size - offsetof(EntryArrayObject, items);
+		size_t	payload_size = iter_object_header->size - offsetof(EntryArrayObject, items);
+		char	*buf;
 
 		buf = malloc(payload_size);
 		if (!buf)
 			return -ENOMEM;
 
-		op = iou_op_new(iou);
-		if (!op)
-			return -ENOMEM;
-
-		io_uring_prep_read(op->sqe, (*journal)->idx, buf, payload_size, (*iter_offset) + offsetof(EntryArrayObject, items));
-		op->sqe->flags = IOSQE_FIXED_FILE;
-		op_queue(iou, op, THUNK(
-			per_entry_array_payload(iou, op, payload_size, buf, profile, THUNK(
-				journal_iter_next_object(iou, journal, header, iter_offset, iter_object_header, self)))));
+		return	thunk_mid(journal_read(iou, *journal, (*iter_offset) + offsetof(EntryArrayObject, items), payload_size, buf, THUNK(
+				per_entry_array_payload(iou, payload_size, buf, profile, THUNK(
+					journal_iter_next_object(iou, journal, header, iter_offset, iter_object_header, self))))));
 	}
-
-	return 1;
 }
 
 
